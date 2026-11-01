@@ -2199,11 +2199,11 @@ html.reduce-motion .world .flare, html.reduce-motion .world .breeze { transform:
                   <svg id="play-icon" aria-hidden="true" focusable="false"><use href="#ic-play"/></svg>
                 </button>
                 <div>
-                  <p class="track-title">"Sound of Fans Spinning Up"</p>
-                  <p class="track-sub">Malena &amp; the Cron Jobs — Server Room Sessions <span class="loop-tag">(8-bit, loops)</span></p>
+                  <p class="track-title">"My Way"</p>
+                  <p class="track-sub">Limp Bizkit — Chocolate Starfish and the Hot Dog Flavored Water <span class="loop-tag">(loops)</span></p>
                 </div>
                 <div class="progress" role="presentation"><span id="progress-fill"></span></div>
-                <div class="player-time"><span id="time-cur">0:00</span><span id="time-total">0:14</span></div>
+                <div class="player-time"><span id="time-cur">0:00</span><span id="time-total">0:00</span></div>
               </div>
             </div>
           </section>
@@ -4932,18 +4932,17 @@ const XP = (function () {
   };
   const player = {
     buffer: null, src: null, startAt: 0, offset: 0, playing: false, raf: null, dur: 0,
+    file: "my-way.mp3", loading: false,
     init() {
       this.btn = $("#play-btn"); this.icon = $("#play-icon"); this.fill = $("#progress-fill"); this.cur = $("#time-cur"); this.tot = $("#time-total");
-      this.dur = music.duration();
-      this.tot.textContent = this.fmt(this.dur);
       this.btn.addEventListener("click", () => this.toggle());
       this.render();
     },
     fmt(s) { s = Math.floor(s); return Math.floor(s / 60) + ":" + pad(s % 60); },
     pos() { if (!this.playing || !sound.ctx) return this.offset; return ((sound.ctx.currentTime - this.startAt) % this.dur + this.dur) % this.dur; },
     render() {
-      const p = this.pos();
-      this.fill.style.width = (p / this.dur * 100).toFixed(2) + "%";
+      const p = this.dur ? this.pos() : 0;
+      this.fill.style.width = (this.dur ? p / this.dur * 100 : 0).toFixed(2) + "%";
       const txt = this.fmt(p); if (this.cur.textContent !== txt) this.cur.textContent = txt;
     },
     tick() {
@@ -4956,7 +4955,7 @@ const XP = (function () {
     play() {
       const ctx = sound.ensureCtx(); // user gesture: the Play button
       if (!ctx) { dialog.open({ title: "Windows Media Player", titleIcon: "xi-vol", icon: "xi-warn", message: "No audio device was found. The song plays in your imagination today.", buttons: [{ label: "OK", value: "ok", primary: true }] }); return; }
-      if (!this.buffer) { try { this.buffer = music.render(ctx); } catch (e) { return; } }
+      if (!this.buffer) { this.load(ctx); return; }
       this.dur = this.buffer.duration; this.tot.textContent = this.fmt(this.dur);
       const src = ctx.createBufferSource(); src.buffer = this.buffer; src.loop = true; src.connect(sound.master);
       src.start(0, this.offset % this.dur);
@@ -4964,6 +4963,20 @@ const XP = (function () {
       this.btn.setAttribute("aria-pressed", "true"); this.btn.setAttribute("aria-label", "Pause profile song"); swapUse(this.icon, "ic-pause");
       if (sound.muted) toast.show("The speaker in the tray is muted, so the song plays silently", "xi-vol-mute");
       this.tick();
+    },
+    /* Pull the mp3 sitting next to index.html; fall back to the built-in chiptune if it is missing */
+    async load(ctx) {
+      if (this.loading) return;
+      this.loading = true; this.btn.setAttribute("aria-label", "Loading profile song");
+      try {
+        const res = await fetch(this.file);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        this.buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+      } catch (e) {
+        try { this.buffer = music.render(ctx); } catch (e2) { this.loading = false; this.btn.setAttribute("aria-label", "Play profile song"); return; }
+      }
+      this.loading = false; this.btn.setAttribute("aria-label", "Play profile song");
+      this.play();
     },
     pause() {
       if (!this.playing) return;
